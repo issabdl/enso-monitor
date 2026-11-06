@@ -1,0 +1,13 @@
+{
+  "index": "ONI",
+  "name": "Oceanic Nino Index",
+  "organization": "NOAA Climate Prediction Center (CPC)",
+  "page": "https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/index.php",
+  "file_url": "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt",
+  "dataset_version": "ONI v6 (ERSST.v6)",
+  "extracted_at": "2026-11-08T00:30:00Z",
+  "server_last_modified": "2026-11-03T19:31:48Z",
+  "sha256": "118c563331335c8649cdc2677e6be7ae89d1259d901345fcddbc2857af280f7f",
+  "coverage": "DJF 1950 - ASO 2026",
+  "unit": "degC (anomalie SST Nino 3.4, moyenne glissante 3 mois)"
+}
