@@ -1,0 +1,9 @@
+{
+  "name": "enso-monitor-docs",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "mermaid": "^12.3.0",
+    "playwright": "^1.65.0"
+  }
+}
