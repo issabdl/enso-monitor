@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>ENSO Monitor : guide de soutenance</title>
+<link rel="stylesheet" href="print.css">
+<script src="../tools/node_modules/mermaid/dist/mermaid.min.js"></script>
+<style>
+  .qa { break-inside: avoid; margin: 0 0 7pt; }
+  .qa .q { font-weight: 700; color: var(--navy); margin-bottom: 1pt; }
+  .qa .a { margin: 0; }
+  .step { counter-increment: step; }
+  .timeline td:first-child { white-space: nowrap; font-weight: 600; }
+  .check li { list-style: none; margin-left: -12pt; }
+  .check li::before { content: '☐ '; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div>
+    <div class="eyebrow">Document de préparation · usage personnel</div>
+    <h1>Guide de soutenance</h1>
+    <p class="subtitle">ENSO Monitor : ce qui a été réalisé, comment le présenter, comment le défendre</p>
+    <div class="band"></div>
+    <p class="lead" style="max-width:145mm">La soutenance est d'abord une <strong>code review individuelle</strong> : le jury évalue la compréhension,
+      la justification des choix et la capacité à modifier le code en direct, plus que le nombre de fonctionnalités.
+      Ce guide donne une vue d'ensemble du projet, un déroulé de présentation, la carte du code, les décisions à défendre,
+      les questions probables et des exercices de modification à répéter avant le jour J.</p>
+  </div>
+  <dl>
+    <dt>Projet</dt><dd>ENSO Monitor · sujet de rattrapage HETIC WEB3 · RNCP 36146</dd>
+    <dt>Livrables</dt><dd>A : dépôt <code>enso-monitor/</code> · B : <code>docs/Dossier_de_conception_ENSO_Monitor.pdf</code> (14 pages)</dd>
+    <dt>À faire avant l'oral</dt><dd>Relancer la pile et les tests soi-même, lire chaque fichier cité en section 4, répéter les exercices de la section 7.</dd>
+  </dl>
+</section>
+
+<!-- ===================== 1 ===================== -->
+<section class="section">
+  <h2>1. Le projet en 30 secondes</h2>
+  <div class="callout">
+    « ENSO Monitor importe l'indice officiel de la NOAA qui mesure El Niño et La Niña, l'ONI, dans PostgreSQL avec un ETL Python.
+    Une API FastAPI l'expose avec un filtrage par période validé. L'interface React permet de lire la courbe depuis 1950,
+    de zoomer sur une période et de comparer deux épisodes historiques avec une interprétation prudente. Tout est sourcé :
+    on peut remonter de chaque valeur affichée jusqu'au fichier NOAA importé. La pile complète démarre avec une seule
+    commande Docker, et les règles importantes sont couvertes par 25 tests automatisés. »
+  </div>
+
+  <h3>Chiffres à connaître par cœur</h3>
+  <table>
+    <tbody>
+      <tr><td style="width:45%">Saisons importées (DJF 1950 à ASO 2026)</td><td><strong>921</strong>, 0 rejet</td></tr>
+      <tr><td>Épisodes détectés (règle NOAA)</td><td><strong>43</strong> El Niño et La Niña confondus</td></tr>
+      <tr><td>Comparaison par défaut</td><td>El Niño 1997-1998 : 12 saisons, pic <strong>+2,37 °C</strong> (NDJ 1997) · El Niño 2014-2016 : 20 saisons, pic <strong>+2,59 °C</strong> (NDJ 2015)</td></tr>
+      <tr><td>Épisode en cours</td><td>El Niño depuis mai 2026, <strong>+2,46 °C</strong> en ASO 2026 (valeurs encore révisables)</td></tr>
+      <tr><td>Extremums de la série</td><td>max <strong>+2,59</strong> (NDJ 2015) · min <strong>−2,04</strong> (NDJ 1973)</td></tr>
+      <tr><td>Tests</td><td><strong>22</strong> Pytest + <strong>3</strong> Vitest, tous verts ; lint Ruff, oxlint, TypeScript strict sans erreur</td></tr>
+      <tr><td>Taille de la réponse « série complète »</td><td>74 Ko de JSON, 9 Ko après compression par Caddy</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Vocabulaire ENSO indispensable</h3>
+  <table class="small">
+    <tbody>
+      <tr><td style="width:22%"><strong>ENSO</strong></td><td>El Niño-Southern Oscillation : variation naturelle couplée océan-atmosphère dans le Pacifique équatorial, avec deux phases opposées (El Niño chaud, La Niña froid) et une phase neutre.</td></tr>
+      <tr><td><strong>Niño 3.4</strong></td><td>Zone du Pacifique équatorial (5°N-5°S, 170°W-120°W) où l'on mesure la température de surface de la mer pour suivre ENSO.</td></tr>
+      <tr><td><strong>Anomalie</strong></td><td>Écart entre la température observée et la moyenne climatologique de référence pour la même période de l'année.</td></tr>
+      <tr><td><strong>ONI</strong></td><td>Oceanic Niño Index : moyenne glissante sur 3 mois de l'anomalie en Niño 3.4. Valeur publiée au centième de degré.</td></tr>
+      <tr><td><strong>Saison glissante</strong></td><td>Trois mois consécutifs désignés par leurs initiales : DJF = décembre, janvier, février. Il y en a 12 par an, qui se chevauchent.</td></tr>
+      <tr><td><strong>Épisode</strong></td><td>Définition NOAA : au moins 5 saisons consécutives avec ONI ≥ +0,5 °C (El Niño) ou ≤ −0,5 °C (La Niña).</td></tr>
+      <tr><td><strong>ERSST v6</strong></td><td>Jeu de données de température de surface reconstruit par la NOAA sur lequel l'ONI v6 est calculé. Un changement de version modifie légèrement les valeurs historiques.</td></tr>
+      <tr><td><strong>RONI</strong></td><td>Relative ONI : variante qui retire le réchauffement moyen de l'ensemble des tropiques. Non utilisé ici (le sujet demande l'un ou l'autre).</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ===================== 2 ===================== -->
+<section class="section">
+  <h2>2. Ce qui a été réalisé</h2>
+
+  <h3>Couverture du sujet</h3>
+  <table class="small">
+    <thead><tr><th style="width:38%">Exigence du sujet</th><th style="width:9%">État</th><th>Où le montrer</th></tr></thead>
+    <tbody>
+      <tr><td>Importer une série NOAA authentique (ONI) dans PostgreSQL avec Python</td><td>Fait</td><td><code>backend/etl/</code>, journal <code>docker compose logs etl</code></td></tr>
+      <tr><td>Identifier la source et contrôler les doublons</td><td>Fait</td><td><code>data/raw/oni.metadata.json</code>, table <code>data_import</code>, contrainte <code>uq_observation_index_period</code></td></tr>
+      <tr><td>API FastAPI documentée, filtrage temporel, validation</td><td>Fait</td><td>http://localhost:8080/api/docs, <code>routers/indices.py</code></td></tr>
+      <tr><td>Courbe interactive React/TypeScript, filtre de période</td><td>Fait</td><td><code>OniChart.tsx</code>, <code>PeriodFilter.tsx</code></td></tr>
+      <tr><td>Comparaison de deux épisodes, interprétation prudente</td><td>Fait</td><td><code>EpisodeCompare.tsx</code>, <code>services/episodes.py</code></td></tr>
+      <tr><td>Interface responsive, légende, clavier, états d'erreur</td><td>Fait</td><td>captures mobile et erreur ci-dessous, <code>StatusMessage.tsx</code></td></tr>
+      <tr><td>PostgreSQL, SQLAlchemy, contraintes, migrations Alembic</td><td>Fait</td><td><code>models.py</code>, <code>alembic/versions/</code></td></tr>
+      <tr><td>3 tests minimaux (données, API, frontend)</td><td>Fait</td><td><code>test_transform.py</code>, <code>test_api.py</code>, <code>App.test.tsx</code></td></tr>
+      <tr><td>README, conventions Git, linting, secrets hors Git</td><td>Fait</td><td><code>README.md</code>, <code>git log</code>, <code>.gitignore</code>, <code>.env.example</code></td></tr>
+      <tr><td>Dossier de conception ≤ 15 pages, 8 sections imposées</td><td>Fait</td><td>14 pages ; la déclaration des outils utilisés (section 8 et README) reste à compléter</td></tr>
+      <tr><td>Procédure de déploiement (VPS, Compose, Caddy, sauvegardes)</td><td>Fait</td><td>section 7 du dossier, <code>compose.prod.yaml</code>, <code>deploy/</code></td></tr>
+      <tr><td>Extensions (administration, carte, RONI, exports)</td><td>Non</td><td>choix assumé : le sujet dit qu'un MVP maîtrisé prime</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Rendu de l'application</h3>
+  <div class="grid-2" style="grid-template-columns: 2.3fr 1fr; align-items:start">
+    <div class="figure" style="margin:0">
+      <img class="screenshot" src="../assets/screenshots/desktop-full.png" alt="Application, vue complète" style="max-height:150mm; object-fit:cover; object-position:top">
+      <p class="caption">Vue desktop : courbe, indicateurs, comparaison, source.</p>
+    </div>
+    <div>
+      <div class="figure" style="margin:0">
+        <img class="screenshot" src="../assets/screenshots/mobile.png" alt="Application sur mobile" style="max-height:110mm; object-fit:cover; object-position:top">
+        <p class="caption">Mobile (390 px).</p>
+      </div>
+      <div class="figure">
+        <img class="screenshot" src="../assets/screenshots/error-state.png" alt="État d'erreur" style="max-height:28mm; object-fit:cover; object-position:0 22%">
+        <p class="caption">Erreur API simulée : message et « Réessayer ».</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 3 ===================== -->
+<section class="section">
+  <h2>3. Déroulé de présentation conseillé (15 minutes)</h2>
+  <table class="timeline small">
+    <thead><tr><th style="width:13%">Temps</th><th style="width:22%">Partie</th><th>Contenu</th></tr></thead>
+    <tbody>
+      <tr><td>0 à 2 min</td><td>Contexte et besoin</td><td>Pitch de la section 1 ; public visé ; pourquoi l'ONI ; ce qui est volontairement hors périmètre.</td></tr>
+      <tr><td>2 à 6 min</td><td>Démonstration</td><td>Script ci-dessous. Montrer les trois fonctionnalités, la source, un cas d'erreur.</td></tr>
+      <tr><td>6 à 9 min</td><td>Conception</td><td>Diagramme de cas d'utilisation, modèle de domaine (pourquoi <code>Episode</code> n'est pas une table), séquence d'une consultation.</td></tr>
+      <tr><td>9 à 12 min</td><td>Architecture et code</td><td>Schéma logique ; parcours d'une requête dans le code (filtre → client → route → requête SQL) ; ETL et idempotence.</td></tr>
+      <tr><td>12 à 14 min</td><td>Qualité</td><td>Lancer les tests en direct ; sécurité (validation, secrets, réseau) ; une anomalie corrigée.</td></tr>
+      <tr><td>14 à 15 min</td><td>Déploiement et bilan</td><td>VPS + Compose + Caddy + sauvegardes ; limites ; améliorations.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Script de démonstration</h3>
+  <ol class="small">
+    <li><strong>Avant l'oral</strong> : Docker démarré, <code>docker compose up -d --build</code>, page ouverte sur http://localhost:8080, terminal dans <code>enso-monitor/</code>, éditeur ouvert sur <code>backend/app/routers/indices.py</code>.</li>
+    <li><strong>Série complète</strong> : lire la courbe (rouge au-dessus de +0,5, bleu sous −0,5), montrer les six indicateurs, l'unité et la source sous le graphique.</li>
+    <li><strong>Filtre</strong> : cliquer « 1997-1998 » → les indicateurs changent. Puis saisir un début après la fin → message d'erreur, aucune requête envoyée.</li>
+    <li><strong>Tableau</strong> : ouvrir « Voir les valeurs sous forme de tableau » (alternative accessible), naviguer à la touche Tab pour montrer le focus.</li>
+    <li><strong>Comparaison</strong> : 1997 contre 2015 → expliquer l'alignement « mois depuis le début », le tableau, puis lire l'interprétation <em>et les limites</em>. Changer l'épisode B pour l'épisode en cours de 2026.</li>
+    <li><strong>Source</strong> : bloc « Source et traçabilité » : version, date d'extraction, empreinte SHA-256, volumes du dernier import.</li>
+    <li><strong>API</strong> : ouvrir <code>/api/docs</code>, exécuter <code>/observations</code> avec <code>start=2015-13</code> → 422 ; avec une bonne période → 200.</li>
+    <li><strong>Idempotence</strong> : <code>docker compose run --rm etl</code> → « insérées=0 mises à jour=0 » : relancer l'import ne crée pas de doublon.</li>
+  </ol>
+
+  <h3>Aide-mémoire des commandes</h3>
+<pre>docker compose up -d --build            # démarrer toute la pile
+docker compose ps                       # état et santé des services
+docker compose logs etl                 # résultat de l'import
+docker compose run --rm etl             # rejouer l'import (idempotent)
+docker compose exec db psql -U enso -d enso -c "SELECT count(*) FROM observation;"
+docker compose exec db psql -U enso -d enso -c "SELECT * FROM data_import ORDER BY id DESC LIMIT 3;"
+
+cd backend; .venv/Scripts/activate; pytest -v; ruff check .
+cd frontend; npm test; npm run lint; npm run build
+curl "http://localhost:8080/api/v1/indices/oni/observations?start=2015-10&end=2016-01"</pre>
+</section>
+
+<!-- ===================== 4 ===================== -->
+<section class="section">
+  <h2>4. Carte du code : ce qu'il faut savoir expliquer</h2>
+  <p class="small muted">Pour chaque fichier : son rôle et le point que le jury peut demander de commenter. Lire chacun au moins une fois en entier.</p>
+
+  <h3>Données et ETL (<code>backend/etl/</code>)</h3>
+  <table class="small">
+    <thead><tr><th style="width:22%">Fichier</th><th>Rôle</th><th style="width:40%">Point clé à expliquer</th></tr></thead>
+    <tbody>
+      <tr><td><code>transform.py</code></td><td>Fonctions pures : lecture du texte NOAA (<code>parse_oni_text</code>), nettoyage (<code>transform</code>).</td><td><code>pd.to_numeric(errors="coerce")</code> transforme les valeurs illisibles en NaN, puis le masque <code>valid</code> les rejette ; <code>drop_duplicates(subset="period", keep="last")</code> garde la dernière occurrence ; <code>SEASON_CENTER_MONTH</code> : DJF → 1, NDJ → 12.</td></tr>
+      <tr><td><code>import_oni.py</code></td><td>Chargement en base, traçabilité, option <code>--download</code>.</td><td>Une seule transaction (<code>session.begin()</code>) : tout ou rien. On charge les observations existantes dans un dictionnaire par période, puis on insère, met à jour (valeur révisée) ou ignore. L'empreinte SHA-256 du fichier est comparée aux métadonnées.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>API (<code>backend/app/</code>)</h3>
+  <table class="small">
+    <thead><tr><th style="width:22%">Fichier</th><th>Rôle</th><th style="width:40%">Point clé à expliquer</th></tr></thead>
+    <tbody>
+      <tr><td><code>config.py</code></td><td>Configuration par variables d'environnement (pydantic-settings).</td><td><code>database_url</code> n'a pas de valeur par défaut : sans configuration, l'application refuse de démarrer, aucun mot de passe n'est dans le code.</td></tr>
+      <tr><td><code>db.py</code></td><td>Moteur SQLAlchemy et dépendance <code>get_db</code>.</td><td>Une session par requête, fermée automatiquement (<code>yield</code> dans un <code>with</code>). Les tests remplacent cette dépendance (<code>dependency_overrides</code>).</td></tr>
+      <tr><td><code>models.py</code></td><td>Quatre tables ORM et leurs contraintes.</td><td><code>UniqueConstraint("index_id", "period")</code> et les <code>CheckConstraint</code> : l'intégrité est garantie par la base, pas seulement par le code.</td></tr>
+      <tr><td><code>schemas.py</code></td><td>Schémas Pydantic des réponses.</td><td><code>from_attributes=True</code> permet de construire la réponse directement depuis les objets ORM ; le schéma définit aussi la documentation OpenAPI.</td></tr>
+      <tr><td><code>routers/indices.py</code></td><td>Les 4 routes métier.</td><td><code>Query(pattern=MONTH_PATTERN)</code> → 422 automatique ; <code>check_range</code> → 422 si début &gt; fin ; <code>get_index</code> → 404 ; <code>load_points</code> construit la requête filtrée.</td></tr>
+      <tr><td><code>services/episodes.py</code></td><td>Détection, résumé et interprétation, sans base de données.</td><td><code>detect_episodes</code> parcourt la série et regroupe les saisons consécutives de même phase ; un « trou » de plus d'un mois coupe l'épisode ; <code>interpret</code> refuse de départager deux pics à moins de 0,1 °C.</td></tr>
+      <tr><td><code>main.py</code></td><td>Application FastAPI, route de santé.</td><td>Documentation sur <code>/api/docs</code> ; <code>/api/v1/health</code> exécute <code>SELECT 1</code> (utilisée par le healthcheck Docker).</td></tr>
+      <tr><td><code>alembic/</code></td><td>Migrations.</td><td>Migration générée par autogénération depuis les modèles ; appliquée au démarrage du conteneur (<code>alembic upgrade head</code>).</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Frontend (<code>frontend/src/</code>)</h3>
+  <table class="small">
+    <thead><tr><th style="width:22%">Fichier</th><th>Rôle</th><th style="width:40%">Point clé à expliquer</th></tr></thead>
+    <tbody>
+      <tr><td><code>api/types.ts</code>, <code>api/client.ts</code></td><td>Types alignés sur l'API ; fonction <code>get</code> générique.</td><td>Erreur réseau → <code>ApiError(0, …)</code> avec message lisible ; erreur HTTP → on lit <code>detail</code> renvoyé par FastAPI.</td></tr>
+      <tr><td><code>hooks/useApi.ts</code></td><td>Hook de chargement réutilisable.</td><td><code>AbortController</code> : si la période change avant la réponse, l'ancienne requête est annulée, une réponse lente ne peut pas écraser une plus récente. <code>retry</code> relance l'appel.</td></tr>
+      <tr><td><code>App.tsx</code></td><td>Mise en page et état de la période.</td><td>La période est un état React ; la changer modifie la clé de <code>useApi</code>, donc relance l'appel ; les composants enfants recalculent à partir des nouvelles données.</td></tr>
+      <tr><td><code>PeriodFilter.tsx</code></td><td>Saisie de la période.</td><td>Brouillon local (<code>draft</code>) validé à la soumission ; message relié au champ par <code>aria-describedby</code> ; boutons prédéfinis avec <code>aria-pressed</code>.</td></tr>
+      <tr><td><code>OniChart.tsx</code></td><td>Courbe Recharts.</td><td>Dégradé rouge/bleu dont la limite est calculée à la position du zéro ; lignes de seuil ±0,5 ; le graphique est <code>aria-hidden</code> car une alternative textuelle et un tableau existent.</td></tr>
+      <tr><td><code>EpisodeCompare.tsx</code></td><td>Comparaison de deux épisodes.</td><td>Sélection par défaut sur l'année du pic (1997 et 2015) ; la série B est en pointillés pour ne pas dépendre de la couleur.</td></tr>
+      <tr><td><code>SeriesStats</code>, <code>DataTable</code>, <code>SourceInfo</code>, <code>StatusMessage</code></td><td>Indicateurs, tableau, traçabilité, états.</td><td><code>role="alert"</code> pour les erreurs (annoncées immédiatement), <code>role="status"</code> pour le chargement.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Exécution et déploiement</h3>
+  <table class="small">
+    <tbody>
+      <tr><td style="width:22%"><code>compose.yaml</code></td><td>4 services, 2 réseaux, 3 volumes ; ordre de démarrage par <code>healthcheck</code> + <code>depends_on: condition: service_healthy</code> ; seul <code>web</code> publie un port.</td></tr>
+      <tr><td><code>deploy/Caddyfile</code></td><td><code>{$SITE_ADDRESS::80}</code> : variable avec valeur par défaut <code>:80</code> ; un nom de domaine active le HTTPS automatique ; <code>handle /api/*</code> relaie vers l'API, le reste sert React.</td></tr>
+      <tr><td><code>backend/Dockerfile</code></td><td>Image <code>python:3.12-slim</code>, utilisateur sans privilèges (<code>USER enso</code>), migrations puis Uvicorn.</td></tr>
+      <tr><td><code>frontend/Dockerfile</code></td><td>Build multi-étapes : Node compile, l'image finale ne contient que Caddy et les fichiers statiques.</td></tr>
+      <tr><td><code>deploy/backup.sh</code>, <code>compose.prod.yaml</code></td><td>Sauvegarde <code>pg_dump</code> avec rotation ; surcharge de production (ports 80/443, rotation des journaux).</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ===================== 5 ===================== -->
+<section class="section">
+  <h2>5. Les décisions à défendre</h2>
+  <p class="small muted">Structure de réponse recommandée par le sujet : <strong>besoin → options envisagées → choix → avantages → limites → vérification</strong>.</p>
+
+  <div class="qa"><p class="q">Pourquoi l'ONI et pas le RONI ?</p>
+    <p class="a">C'est l'indice historique de la NOAA, celui de la définition officielle des épisodes et le plus cité, donc le plus facile à vérifier. Le RONI corrige le réchauffement global des océans et devient une référence, mais le sujet n'en demande qu'un. Le modèle de données (<code>climate_index</code>) permet d'ajouter le RONI sans modifier le schéma : un nouvel import suffit.</p></div>
+
+  <div class="qa"><p class="q">Pourquoi un ETL séparé de l'API ?</p>
+    <p class="a">Séparer lecture et écriture : l'API ne contient aucune route d'écriture, donc aucune administration à protéger. L'import est rejouable à volonté (idempotent), planifiable par cron, et ses transformations sont des fonctions pures testées sans base. Limite : il faut planifier l'import hors de l'application.</p></div>
+
+  <div class="qa"><p class="q">Comment garantissez-vous l'absence de doublons ?</p>
+    <p class="a">À deux niveaux. Dans le code : dédoublonnage pandas sur la période, puis comparaison avec les observations déjà en base (insertion, mise à jour ou rien). Dans la base : <code>UNIQUE (index_id, period)</code>, qui refuserait un doublon même si quelqu'un contournait l'ETL. Preuve : <code>test_import_is_idempotent</code> et le second import réel qui insère 0 ligne.</p></div>
+
+  <div class="qa"><p class="q">Pourquoi rattacher une saison à son mois central ?</p>
+    <p class="a">Une saison comme DJF 1998 couvre trois mois à cheval sur deux années. Le mois central (janvier 1998) donne une date unique, triable et filtrable avec une simple comparaison de <code>DATE</code>, tout en gardant le libellé d'origine (<code>season</code>, <code>year</code>) pour l'affichage et la traçabilité.</p></div>
+
+  <div class="qa"><p class="q">Pourquoi les épisodes ne sont-ils pas stockés en base ?</p>
+    <p class="a">Ce sont des données dérivées. Les calculer à chaque requête (921 points, quelques millisecondes) évite qu'ils deviennent faux après une révision NOAA. Si la série devenait très grande, on les matérialiserait (table ou vue matérialisée) recalculée par l'ETL.</p></div>
+
+  <div class="qa"><p class="q">Pourquoi une API versionnée <code>/api/v1</code> ?</p>
+    <p class="a">Pour pouvoir changer le format des réponses (par exemple ajouter le RONI de façon incompatible) dans une <code>/api/v2</code> sans casser les clients existants. Coût nul aujourd'hui, utile demain.</p></div>
+
+  <div class="qa"><p class="q">Pourquoi Docker Compose et Caddy ?</p>
+    <p class="a">Compose décrit toute la pile dans un fichier versionné : même environnement en local et sur le serveur, ordre de démarrage géré par les healthchecks. Caddy est le seul point d'entrée : il sert le front, relaie l'API (même origine, donc pas de CORS) et obtient seul les certificats HTTPS. Nginx + Certbot était l'alternative, plus verbeuse. Kubernetes serait disproportionné pour un seul serveur.</p></div>
+
+  <div class="qa"><p class="q">Pourquoi tester l'API avec SQLite plutôt que PostgreSQL ?</p>
+    <p class="a">Les tests tournent en moins d'une seconde sans aucun service à démarrer. Le code n'utilise que des types et requêtes portables. Limite reconnue : une différence de comportement propre à PostgreSQL ne serait pas détectée par ces tests ; elle l'est par l'import réel dans la pile Docker. Amélioration possible : lancer les tests contre un PostgreSQL de test (Testcontainers).</p></div>
+
+  <div class="qa"><p class="q">Pourquoi pas d'authentification ?</p>
+    <p class="a">L'application est en lecture seule sur des données publiques. Ajouter des comptes créerait une surface d'attaque (mots de passe, sessions, CSRF) sans besoin réel. Si une administration était ajoutée, elle nécessiterait authentification, contrôle d'accès par rôle et journalisation des actions.</p></div>
+
+  <div class="qa"><p class="q">Comment le graphique est-il rendu accessible ?</p>
+    <p class="a">Un graphique n'est pas lisible par un lecteur d'écran : il est masqué (<code>aria-hidden</code>) et remplacé par un résumé textuel (période, maximum, minimum) et par un tableau complet. Les seuils sont écrits, les couleurs ont un contraste suffisant, la série B est en pointillés. Tous les contrôles sont natifs, donc utilisables au clavier.</p></div>
+
+  <div class="qa"><p class="q">Pourquoi l'interprétation est-elle « prudente » ?</p>
+    <p class="a">L'ONI ne mesure qu'une température de surface dans une zone : il ne dit rien des impacts. L'interprétation se limite donc aux mesures (pic, durée, moyenne, phase), refuse de départager deux pics à moins de 0,1 °C, signale qu'un épisode en cours peut être révisé et affiche systématiquement les limites. L'expression « Super El Niño » n'est pas utilisée, car elle n'a pas de définition scientifique universelle.</p></div>
+</section>
+
+<!-- ===================== 6 ===================== -->
+<section class="section">
+  <h2>6. Questions probables du jury, par compétence</h2>
+
+  <h3>BC01 · Conception</h3>
+  <div class="qa"><p class="q">Commentez la cardinalité entre <code>DataImport</code> et <code>Observation</code>.</p>
+    <p class="a">1 → 0..* : un import peut n'avoir écrit aucune ligne (réimport identique), une observation pointe vers le dernier import qui l'a écrite. On garde une seule valeur par saison (pas d'historique des versions) : choix de simplicité ; pour historiser, il faudrait une table de versions.</p></div>
+  <div class="qa"><p class="q">Pourquoi <code>NUMERIC</code> et pas <code>FLOAT</code> ?</p>
+    <p class="a">La NOAA publie au centième. <code>NUMERIC(4,2)</code> stocke exactement cette valeur ; un flottant introduirait des approximations binaires (0,1 non représentable), gênantes pour comparer une valeur révisée à l'ancienne.</p></div>
+
+  <h3>BC02 / C2.2 · Cycle de vie</h3>
+  <div class="qa"><p class="q">Comment avez-vous priorisé ?</p>
+    <p class="a">MoSCoW à partir des quatre fonctionnalités imposées (Must), puis traçabilité et mise à jour (Should), le reste en Could. Le planning sur cinq jours garantit chaque soir un livrable qui fonctionne : données + API au jour 2, interface au jour 3, qualité et Docker au jour 4.</p></div>
+  <div class="qa"><p class="q">Quel risque s'est réalisé ?</p>
+    <p class="a">Le décalage entre les dates d'épisodes de l'ONI v6 et les références habituelles (l'El Niño « 2015 » commence en octobre 2014) a cassé la sélection par défaut. Corrigé en sélectionnant par l'année du pic. Également les particularités de Docker et Git sous Windows (chemins, fins de ligne).</p></div>
+
+  <h3>BC03 / C3.1 · Programmation et sécurité</h3>
+  <div class="qa"><p class="q">Que se passe-t-il si on envoie <code>start=2015' OR 1=1</code> ?</p>
+    <p class="a">Rejeté avant toute requête : le paramètre ne respecte pas le motif <code>^\d{4}-(0[1-9]|1[0-2])$</code>, FastAPI renvoie 422. Et même sans cette validation, SQLAlchemy passe les valeurs en paramètres liés, jamais concaténées dans le SQL.</p></div>
+  <div class="qa"><p class="q">Où sont les secrets ?</p>
+    <p class="a">Dans <code>.env</code>, ignoré par Git ; <code>.env.example</code> documente les variables sans valeur réelle. Compose injecte <code>DATABASE_URL</code> dans l'API et l'ETL. La base n'est joignable que sur le réseau Docker interne.</p></div>
+
+  <h3>BC03 / C3.2 · Outils</h3>
+  <div class="qa"><p class="q">Que fait <code>depends_on: condition: service_healthy</code> ?</p>
+    <p class="a">Le service attend que sa dépendance soit déclarée saine par son healthcheck, pas seulement démarrée : l'API attend que PostgreSQL accepte les connexions, l'ETL attend que l'API ait appliqué les migrations.</p></div>
+  <div class="qa"><p class="q">Comment Caddy obtient-il le HTTPS ?</p>
+    <p class="a">Si l'adresse du site est un nom de domaine qui pointe vers le serveur, Caddy demande automatiquement un certificat à Let's Encrypt (challenge HTTP ou TLS-ALPN sur les ports 80/443), le renouvelle et redirige HTTP vers HTTPS. Les certificats sont conservés dans le volume <code>caddy_data</code>.</p></div>
+
+  <h3>BC03 / C3.3 · Correction</h3>
+  <div class="qa"><p class="q">Montrez une anomalie et sa correction.</p>
+    <p class="a">Quatre anomalies réelles sont documentées dans le dossier (section 6). La plus parlante : la comparaison par défaut affichait 2026 au lieu de 2015. Reproduction : chercher un épisode qui « commence » en 2015 → aucun. Correction : <code>e.peak_period.startsWith(year)</code> dans <code>EpisodeCompare.tsx</code>. Vérification : la page affiche 1997 contre 2015. L'exercice 7.3 permet de refaire une démonstration complète avec un test.</p></div>
+</section>
+
+<!-- ===================== 7 ===================== -->
+<section class="section">
+  <h2>7. Exercices à répéter (modification en direct)</h2>
+
+  <h3>7.1 Ajouter une route : dernière valeur publiée</h3>
+  <p class="small">Demande type : « ajoutez une route qui renvoie la dernière observation ». Dans <code>backend/app/routers/indices.py</code> :</p>
+<pre>@router.get("/{code}/latest", response_model=ObservationOut, responses=NOT_FOUND,
+            summary="Dernière observation publiée")
+def latest_observation(code: str, db: Session = Depends(get_db)):
+    index = get_index(db, code)
+    observation = db.scalar(
+        select(Observation)
+        .where(Observation.index_id == index.id)
+        .order_by(Observation.period.desc())
+        .limit(1)
+    )
+    if observation is None:
+        raise HTTPException(404, "Aucune observation")
+    return observation</pre>
+  <p class="small">Ajouter <code>ObservationOut</code> à l'import des schémas, puis un test dans <code>tests/test_api.py</code> :</p>
+<pre>def test_latest_observation(client):
+    body = client.get("/api/v1/indices/oni/latest").json()
+    assert (body["season"], body["year"]) == ("NDJ", 2002)</pre>
+  <p class="small">Vérifier : <code>pytest -k latest</code>, puis la nouvelle route apparaît dans <code>/api/docs</code>.</p>
+
+  <h3>7.2 Ajouter un filtre : seuil d'anomalie minimal</h3>
+  <p class="small">Dans <code>list_observations</code>, ajouter un paramètre validé et le transmettre à la requête :</p>
+<pre>min_anomaly: Annotated[float | None, Query(ge=-5, le=5)] = None,
+...
+if min_anomaly is not None:
+    query = query.where(Observation.anomaly &gt;= min_anomaly)</pre>
+  <p class="small">Point à souligner : <code>ge</code>/<code>le</code> donnent la validation et la documentation OpenAPI gratuitement ; la valeur passe en paramètre lié.</p>
+
+  <h3>7.3 Reproduire et corriger un bug avec un test</h3>
+  <ol class="small">
+    <li>Introduire le bug : dans <code>etl/transform.py</code>, remplacer <code>keep="last"</code> par <code>keep="first"</code> dans <code>drop_duplicates</code>. Conséquence métier : quand le fichier contient deux fois la même saison, on garderait l'ancienne valeur au lieu de la correction.</li>
+    <li>Lancer <code>pytest</code> : <strong>un seul test échoue</strong>, <code>test_transform_removes_duplicates_and_invalid_rows</code> (attendu −0,39, obtenu −0,40). Les 21 autres passent : le test cible précisément la règle.</li>
+    <li>Expliquer : le test fixe la règle métier « en cas de doublon, la dernière ligne du fichier fait foi ».</li>
+    <li>Corriger, relancer : 22 tests au vert. C'est la démonstration de non-régression attendue en C3.3 (vérifiée le 8 novembre 2026).</li>
+  </ol>
+
+  <h3>7.4 Modifier l'interface : nouvelle période prédéfinie</h3>
+  <p class="small">Dans <code>PeriodFilter.tsx</code>, ajouter à <code>presets</code> : <code>{ label: '2023-2024', period: { start: '2022-06', end: '2025-06' } }</code>.
+    Le bouton apparaît, est accessible au clavier et met la courbe à jour sans autre modification : c'est l'intérêt d'un composant piloté par des données.</p>
+
+  <h3>7.5 Reconstruire un flux de données (à l'oral)</h3>
+  <p class="small">« Que se passe-t-il entre la publication NOAA et l'affichage ? » : fichier NOAA → <code>--download</code> (fichier + métadonnées + empreinte) →
+    <code>parse_oni_text</code> → <code>transform</code> (rejets, doublons, mois central) → transaction : insertion ou mise à jour + ligne <code>data_import</code> →
+    requête de l'interface → validation FastAPI → SQL paramétré → JSON → Recharts. Savoir le dérouler en s'appuyant sur le diagramme de séquence du dossier.</p>
+</section>
+
+<!-- ===================== 8 ===================== -->
+<section class="section">
+  <h2>8. Points faibles assumés et réponses</h2>
+  <table class="small">
+    <thead><tr><th style="width:30%">Limite</th><th>Réponse à donner</th></tr></thead>
+    <tbody>
+      <tr><td>Tests d'API sur SQLite</td><td>Choix de rapidité ; compatibilité PostgreSQL vérifiée par l'import réel ; piste : Testcontainers.</td></tr>
+      <tr><td>Pas de test de bout en bout automatisé</td><td>Le test Vitest couvre le parcours principal côté interface ; un test Playwright sur la pile Docker est la prochaine étape.</td></tr>
+      <tr><td>Bundle frontend de 633 Ko</td><td>Dû à Recharts ; chargement différé de la section comparaison (<code>import()</code> dynamique) identifié.</td></tr>
+      <tr><td>Une seule valeur par saison (pas d'historique des révisions)</td><td>Suffisant pour le besoin ; la traçabilité indique quel import a écrit la valeur ; historisation possible par une table de versions.</td></tr>
+      <tr><td>Classe d'intensité non officielle</td><td>Présentée comme indicative avec ses seuils, conformément à la consigne du sujet sur les classifications.</td></tr>
+      <tr><td>Déploiement non réalisé en ligne</td><td>Facultatif selon le sujet ; procédure complète documentée et pile identique démontrée en local.</td></tr>
+      <tr><td>Import non planifié automatiquement</td><td>Une ligne de cron sur le serveur (mensuelle) ; la commande est idempotente, donc sans risque si elle est relancée.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 style="margin-top:16pt">9. Check-list de la veille</h2>
+  <ul class="check small">
+    <li>La pile démarre sur la machine de soutenance (<code>docker compose up -d --build</code>) et la page s'affiche.</li>
+    <li><code>pytest</code> et <code>npm test</code> passent ; savoir dire ce que vérifie chacun des trois tests minimaux.</li>
+    <li>Savoir expliquer chaque diagramme du dossier sans le lire.</li>
+    <li>Avoir refait au moins une fois les exercices 7.1, 7.3 et 7.4.</li>
+    <li>Connaître les chiffres de la section 1 et le vocabulaire ENSO.</li>
+    <li>Compléter dans le README et la section 8 du dossier la déclaration des outils utilisés, comme l'exige le sujet.</li>
+    <li>Relire <code>git log</code> pour pouvoir commenter l'historique.</li>
+  </ul>
+</section>
+
+<script>
+  mermaid.initialize({ startOnLoad: false })
+  window.__diagramsReady = true
+</script>
+</body>
+</html>
