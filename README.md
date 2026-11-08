@@ -157,7 +157,8 @@ enso-monitor/
 ├── deploy/Caddyfile        reverse proxy (local et production)
 ├── compose.yaml            pile locale
 ├── compose.prod.yaml       surcharge pour un VPS (ports 80/443)
-└── docs/                   dossier de conception, guide de soutenance, outils de génération
+└── docs/                   PDF (dossier de conception, guide de soutenance) et leurs sources HTML
+    └── tools/              génération : npm ci, puis node build-pdf.mjs et node screenshots.mjs
 ```
 
 ## Sécurité
