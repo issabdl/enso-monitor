@@ -1,0 +1,8 @@
+# Surcharge pour un VPS : docker compose -f compose.yaml -f compose.prod.yaml up -d --build
+# Avec SITE_ADDRESS=enso.example.org dans .env, Caddy obtient automatiquement un certificat HTTPS.
+services:
+  web:
+    ports: !override
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"

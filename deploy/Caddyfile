@@ -1,0 +1,32 @@
+# Point d'entrée unique. En local SITE_ADDRESS vaut ":80" (HTTP) ;
+# en production, un nom de domaine déclenche le HTTPS automatique (Let's Encrypt).
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+
+	# API FastAPI (réseau Docker interne)
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Application React compilée : toute route inconnue renvoie index.html
+	handle {
+		root * /srv
+		header Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'"
+		header /assets/* Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
